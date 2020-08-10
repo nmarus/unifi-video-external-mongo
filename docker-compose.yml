@@ -1,0 +1,66 @@
+version: '3.2'
+services:
+  mongo:
+    image: mongo:latest
+    networks:
+      - unifi
+    volumes:
+      - db:/data/db
+
+  controller:
+    image: nmarus/unifi-video:latest
+    depends_on:
+      - mongo
+    networks:
+      - unifi
+    volumes:
+      - data:/var/lib/unifi-video
+      - video:/var/lib/unifi-video/videos
+      - log:/var/lib/unifi-video/logs
+    tmpfs:
+      - /var/cache/unifi-video
+    cap_add:
+      - DAC_READ_SEARCH
+    environment:
+      UBUV_DB_HOST: mongo
+      UBUV_DB_PORT: 27017
+      UBUV_DB_NAME: av
+      UBUV_EX_HOST: 10.100.100.75
+      CREATE_TMPFS: 'no'
+    ports:
+      # RTMP, RTMPS & RTSP via the controller
+      - "1935:1935/tcp"
+      - "7444:7444/tcp"
+      - "7447:7447/tcp"
+      # Inbound Camera Streams & Camera Management (NVR Side)
+      - "6666:6666/tcp"
+      - "7442:7442/tcp"
+      # UVC-Micro Talkback (Camera Side)
+      - "7004:7004/udp"
+      # HTTP & HTTPS Web UI + API
+      - "7080:7080/tcp"
+      - "7443:7443/tcp"
+      # Video over HTTP & HTTPS
+      - "7445:7445/tcp"
+      - "7446:7446/tcp"
+
+  logs:
+    image: bash
+    depends_on:
+      - controller
+    command: bash -c 'while [ ! -f /logs/*.log ]; do echo "Waiting for logs..."; sleep 1; done; tail -F /logs/*.log'
+    depends_on:
+      - controller
+    networks:
+      - unifi
+    volumes:
+      - log:/logs:ro
+
+volumes:
+  db:
+  data:
+  video:
+  log:
+
+networks:
+  unifi:
